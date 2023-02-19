@@ -11,11 +11,8 @@ from torch.nn import functional as F
 def bbox2points(box):
     min_x, min_y, max_x, max_y = torch.split(box[:, :4], [1, 1, 1, 1], dim=1)
 
-    return torch.cat(
-        [min_x, min_y, max_x, min_y, max_x, max_y, min_x, max_y], dim=1
-    ).reshape(
-        -1, 2
-    )  # n*4,2
+    return torch.cat([min_x, min_y, max_x, min_y, max_x, max_y, min_x, max_y],
+                     dim=1).reshape(-1, 2)  # n*4,2
 
 
 def points2bbox(point, max_w, max_h):
@@ -37,7 +34,8 @@ def points2bbox(point, max_w, max_h):
 def check_is_tensor(obj):
     """Checks whether the supplied object is a tensor."""
     if not isinstance(obj, torch.Tensor):
-        raise TypeError("Input type is not a torch.Tensor. Got {}".format(type(obj)))
+        raise TypeError("Input type is not a torch.Tensor. Got {}".format(
+            type(obj)))
 
 
 def normal_transform_pixel(
@@ -70,35 +68,27 @@ def normalize_homography(
 ) -> torch.Tensor:
     check_is_tensor(dst_pix_trans_src_pix)
 
-    if not (
-        len(dst_pix_trans_src_pix.shape) == 3
-        or dst_pix_trans_src_pix.shape[-2:] == (3, 3)
-    ):
+    if not (len(dst_pix_trans_src_pix.shape) == 3
+            or dst_pix_trans_src_pix.shape[-2:] == (3, 3)):
         raise ValueError(
-            "Input dst_pix_trans_src_pix must be a Bx3x3 tensor. Got {}".format(
-                dst_pix_trans_src_pix.shape
-            )
-        )
+            "Input dst_pix_trans_src_pix must be a Bx3x3 tensor. Got {}".
+            format(dst_pix_trans_src_pix.shape))
 
     # source and destination sizes
     src_h, src_w = dsize_src
     dst_h, dst_w = dsize_dst
 
     # compute the transformation pixel/norm for src/dst
-    src_norm_trans_src_pix: torch.Tensor = normal_transform_pixel(src_h, src_w).to(
-        dst_pix_trans_src_pix
-    )
+    src_norm_trans_src_pix: torch.Tensor = normal_transform_pixel(
+        src_h, src_w).to(dst_pix_trans_src_pix)
     src_pix_trans_src_norm = torch.inverse(src_norm_trans_src_pix.float()).to(
-        src_norm_trans_src_pix.dtype
-    )
-    dst_norm_trans_dst_pix: torch.Tensor = normal_transform_pixel(dst_h, dst_w).to(
-        dst_pix_trans_src_pix
-    )
+        src_norm_trans_src_pix.dtype)
+    dst_norm_trans_dst_pix: torch.Tensor = normal_transform_pixel(
+        dst_h, dst_w).to(dst_pix_trans_src_pix)
 
     # compute chain transformations
     dst_norm_trans_src_norm: torch.Tensor = dst_norm_trans_dst_pix @ (
-        dst_pix_trans_src_pix @ src_pix_trans_src_norm
-    )
+        dst_pix_trans_src_pix @ src_pix_trans_src_norm)
     return dst_norm_trans_src_norm
 
 
@@ -111,25 +101,26 @@ def warp_affine(
     align_corners: Optional[bool] = None,
 ) -> torch.Tensor:
     if not isinstance(src, torch.Tensor):
-        raise TypeError(
-            "Input src type is not a torch.Tensor. Got {}".format(type(src))
-        )
+        raise TypeError("Input src type is not a torch.Tensor. Got {}".format(
+            type(src)))
 
     if not isinstance(M, torch.Tensor):
-        raise TypeError("Input M type is not a torch.Tensor. Got {}".format(type(M)))
+        raise TypeError("Input M type is not a torch.Tensor. Got {}".format(
+            type(M)))
 
     if not len(src.shape) == 4:
-        raise ValueError("Input src must be a BxCxHxW tensor. Got {}".format(src.shape))
+        raise ValueError("Input src must be a BxCxHxW tensor. Got {}".format(
+            src.shape))
 
     if not (len(M.shape) == 3 or M.shape[-2:] == (2, 3)):
-        raise ValueError("Input M must be a Bx2x3 tensor. Got {}".format(M.shape))
+        raise ValueError("Input M must be a Bx2x3 tensor. Got {}".format(
+            M.shape))
 
     # TODO: remove the statement below in kornia v0.6
     if align_corners is None:
         message: str = (
             "The align_corners default value has been changed. By default now is set True "
-            "in order to match cv2.warpAffine."
-        )
+            "in order to match cv2.warpAffine.")
         warnings.warn(message)
         # set default value for align corners
         align_corners = True
@@ -138,7 +129,8 @@ def warp_affine(
 
     # we generate a 3x3 transformation matrix from 2x3 affine
 
-    dst_norm_trans_src_norm: torch.Tensor = normalize_homography(M, (H, W), dsize)
+    dst_norm_trans_src_norm: torch.Tensor = normalize_homography(
+        M, (H, W), dsize)
 
     src_norm_trans_dst_norm = torch.inverse(dst_norm_trans_src_norm.float())
 
@@ -174,8 +166,7 @@ class Transform2D:
                 score = bbox[:, 4:]
             points = bbox2points(bbox[:, :4])
             points = torch.cat(
-                [points, points.new_ones(points.shape[0], 1)], dim=1
-            )  # n,3
+                [points, points.new_ones(points.shape[0], 1)], dim=1)  # n,3
             points = torch.matmul(M, points.t()).t()
             points = points[:, :2] / points[:, 2:3]
             bbox = points2bbox(points, out_shape[1], out_shape[0])
@@ -192,24 +183,24 @@ class Transform2D:
         if isinstance(mask, Sequence):
             assert len(mask) == len(M)
             return [
-                Transform2D.transform_masks(b, m, o)
+                # Transform2D.transform_masks(b, m, o)
+                Transform2D.transform_masks(b, m, o[:2])
                 for b, m, o in zip(mask, M, out_shape)
             ]
         else:
             if mask.masks.shape[0] == 0:
-                return BitmapMasks(np.zeros((0, *out_shape)), *out_shape)
-            mask_tensor = (
-                torch.from_numpy(mask.masks[:, None, ...]).to(M.device).to(M.dtype)
-            )
+                # return BitmapMasks(np.zeros((0, *out_shape)), *out_shape)
+                return BitmapMasks(np.zeros((0, *out_shape[:2])),
+                                   *out_shape[:2])
+            mask_tensor = (torch.from_numpy(mask.masks[:, None, ...]).to(
+                M.device).to(M.dtype))
             return BitmapMasks(
                 warp_affine(
                     mask_tensor,
                     M[None, ...].expand(mask.masks.shape[0], -1, -1),
-                    out_shape,
-                )
-                .squeeze(1)
-                .cpu()
-                .numpy(),
+                    # out_shape,
+                    out_shape[:2],
+                ).squeeze(1).cpu().numpy(),
                 out_shape[0],
                 out_shape[1],
             )
@@ -228,21 +219,26 @@ class Transform2D:
             elif img.dim() == 3:
                 img = img[None, ...]
 
-            return (
-                warp_affine(img.float(), M[None, ...], out_shape, mode="nearest")
-                .squeeze()
-                .to(img.dtype)
-            )
+            return (warp_affine(img.float(),
+                                M[None, ...],
+                                out_shape,
+                                mode="nearest").squeeze().to(img.dtype))
 
 
-def filter_invalid(bbox, label=None, score=None, mask=None, thr=0.0, min_size=0):
+def filter_invalid(bbox,
+                   label=None,
+                   score=None,
+                   mask=None,
+                   thr=0.0,
+                   min_size=0):
     if score is not None:
-        valid = score > thr
+        valid = score >= thr
         bbox = bbox[valid]
         if label is not None:
             label = label[valid]
         if mask is not None:
-            mask = BitmapMasks(mask.masks[valid.cpu().numpy()], mask.height, mask.width)
+            mask = BitmapMasks(mask.masks[valid.cpu().numpy()], mask.height,
+                               mask.width)
     if min_size is not None:
         bw = bbox[:, 2] - bbox[:, 0]
         bh = bbox[:, 3] - bbox[:, 1]
@@ -251,5 +247,30 @@ def filter_invalid(bbox, label=None, score=None, mask=None, thr=0.0, min_size=0)
         if label is not None:
             label = label[valid]
         if mask is not None:
-            mask = BitmapMasks(mask.masks[valid.cpu().numpy()], mask.height, mask.width)
+            mask = BitmapMasks(mask.masks[valid.cpu().numpy()], mask.height,
+                               mask.width)
     return bbox, label, mask
+
+
+def result2bbox(result):
+    num_class = len(result)
+
+    bbox = np.concatenate(result)
+    if bbox.shape[0] == 0:
+        label = np.zeros(0, dtype=np.uint8)
+    else:
+        label = np.concatenate([[i] * len(result[i]) for i in range(num_class)
+                                if len(result[i]) > 0]).reshape((-1, ))
+    return bbox, label
+
+
+def result2mask(result):
+    num_class = len(result)
+    mask = [
+        np.stack(result[i]) for i in range(num_class) if len(result[i]) > 0
+    ]
+    if len(mask) > 0:
+        mask = np.concatenate(mask)
+    else:
+        mask = np.zeros((0, 1, 1))
+    return BitmapMasks(mask, mask.shape[1], mask.shape[2]), None
