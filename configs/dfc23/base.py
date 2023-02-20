@@ -203,7 +203,7 @@ test_pipeline = [
 ]
 
 dataset_type = 'DFC23Track1Dataset'
-data_root = 'data/'
+data_root = 'data/dfc23/track1'
 data = dict(
     samples_per_gpu=None,
     workers_per_gpu=None,
@@ -219,7 +219,8 @@ data = dict(
                               pipeline=train_pipeline)),
         unsup=dict(
             type=dataset_type,
-            ann_file='image_id/image_id_val.json',
+            data_root=data_root,
+            ann_file='image_id_val.json',
             img_prefix='val/rgb/',
             pipeline=unsup_pipeline,
             filter_empty_gt=False,
